@@ -1,31 +1,5 @@
 import { fileLines } from "../lib/advent-utils.ts";
 
-const instructions: string[] = fileLines("input/day2.txt");
-console.log(partFactory(1)(instructions));
-console.log(partFactory(2)(instructions));
-
-function partFactory(partNumber: number) {
-  const generatePart = function (
-    submarineType: typeof Submarine,
-  ): (lines: string[]) => number {
-    return function (lines: string[]): number {
-      const sub = new submarineType(lines);
-      const [horizontalPosition, verticalPosition] = sub
-        .calculateFinalPosition();
-      return horizontalPosition * verticalPosition;
-    };
-  };
-
-  switch (partNumber) {
-    case 1:
-      return generatePart(Submarine);
-    case 2:
-      return generatePart(AimingSubmarine);
-    default:
-      throw `unknown part number ${partNumber}`;
-  }
-}
-
 enum Direction {
   Forward = "FORWARD",
   Up = "UP",
@@ -119,3 +93,33 @@ class AimingSubmarine extends Submarine {
     this.#aim += amount;
   }
 }
+
+function partFactory(partNumber: number) {
+  const generatePart = function (
+    submarineType: typeof Submarine,
+  ): (lines: string[]) => number {
+    return function (lines: string[]): number {
+      const sub = new submarineType(lines);
+      const [horizontalPosition, verticalPosition] = sub
+        .calculateFinalPosition();
+      return horizontalPosition * verticalPosition;
+    };
+  };
+
+  switch (partNumber) {
+    case 1:
+      return generatePart(Submarine);
+    case 2:
+      return generatePart(AimingSubmarine);
+    default:
+      throw `unknown part number ${partNumber}`;
+  }
+}
+
+function main() {
+  const instructions: string[] = fileLines("input/day2.txt");
+  console.log(partFactory(1)(instructions));
+  console.log(partFactory(2)(instructions));
+}
+
+main();
