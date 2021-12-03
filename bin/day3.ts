@@ -1,4 +1,4 @@
-import { fileLines } from "../lib/advent-utils.ts";
+import { fileLines, range } from "../lib/advent-utils.ts";
 
 const lines = fileLines("input/day3.txt");
 
@@ -17,63 +17,40 @@ const _test = [
   "01010",
 ];
 
+// [most common, least common]
+const bitCriteria = (lines: string[], pos: number): [string, string] => {
+  const count = lines.reduce(
+    (count, cur) => count + parseInt(cur.charAt(pos)),
+    0,
+  );
+
+  return (count >= lines.length / 2 ? ["1", "0"] : ["0", "1"]);
+};
+
 const part1 = (lines: string[]) => {
-  const data: number[] = [];
-
-  for (const n of lines) {
-    for (let i = 0; i < n.length; i++) {
-      data[i] ||= 0;
-      data[i] += parseInt(n.charAt(i));
-    }
-  }
-
-  const threshold = lines.length / 2;
   let gamma = "";
   let epsilon = "";
-  for (const pos of data) {
-    if (pos > threshold) {
-      gamma += "1";
-      epsilon += "0";
-    } else {
-      gamma += "0";
-      epsilon += "1";
-    }
+  for (const pos of range(lines[0].length)) {
+    const [most, least] = bitCriteria(lines, pos);
+    gamma += most;
+    epsilon += least;
   }
 
   return parseInt(gamma, 2) * parseInt(epsilon, 2);
 };
 
-// [most common, least common]
-const bitCriteria = (lines: string[], pos: number): [string, string] => {
-  let count = 0;
-  for (const n of lines) {
-    count += parseInt(n.charAt(pos));
-  }
-
-  const threshold = lines.length / 2;
-  return (count >= threshold ? ["1", "0"] : ["0", "1"]);
-};
-
 const part2 = (lines: string[]) => {
-  let oxygen = lines.slice();
-  let i = 0;
-  while (oxygen.length > 1) {
-    const choose = bitCriteria(oxygen, i)[0];
-    oxygen = oxygen.filter((s) => s[i] === choose);
-    i++;
-  }
+  const reduce = (bias: number): number => {
+    let arr = lines.slice();
+    for (let i = 0; arr.length > 1; i++) {
+      const choose = bitCriteria(arr, i)[bias];
+      arr = arr.filter((s) => s[i] === choose);
+    }
 
-  let co2 = lines.slice();
-  i = 0;
-  while (co2.length > 1) {
-    const choose = bitCriteria(co2, i)[1];
-    co2 = co2.filter((s) => s[i] === choose);
-    i++;
-  }
+    return parseInt(arr[0], 2);
+  };
 
-  const ox = parseInt(oxygen[0], 2);
-  const co = parseInt(co2[0], 2);
-  return ox * co;
+  return reduce(0) * reduce(1);
 };
 
 console.log(part1(lines));
