@@ -1,7 +1,8 @@
-export function fileLines(filename: string): string[] {
+export function fileLines(filename: string, keepBlanks = false): string[] {
   const data = Deno.readFileSync(filename);
   const text = new TextDecoder().decode(data);
-  return text.split("\n").filter((s) => s.length > 0);
+  const lines = text.split("\n");
+  return keepBlanks ? lines : lines.filter((s) => s.length > 0);
 }
 
 export function fileLinesInt(filename: string): number[] {
