@@ -1,43 +1,41 @@
 import { fileLines } from "../lib/advent-utils.ts";
 
 class Board {
-  hits: Set<string>;
-  #board: Map<number, string>;
+  hits: Map<[number, number], number>;
+  #board: Map<number, [number, number]>;
   #rows = [0, 0, 0, 0, 0];
   #cols = [0, 0, 0, 0, 0];
   #diags = [0, 0];
-  #round = 0;
-  #lastNumber = 0;
+  finishedAtRound = Infinity;
   #isComplete = false;
 
   constructor(lines: string[]) {
-    this.hits = new Set();
+    this.hits = new Map();
     this.#board = new Map();
+
     lines.forEach((line, rowNum) => {
       const nums = line.split(/\s+/)
         .filter((n) => n.length > 0)
         .map((n) => parseInt(n));
 
       nums.forEach((n, colNum) => {
-        const k = `${rowNum},${colNum}`;
-        this.#board.set(n, k);
+        const loc: [number, number] = [rowNum, colNum];
+        this.#board.set(n, loc);
       });
     });
   }
 
   // returns whether it's done or not
-  registerHit(n: number): boolean {
+  registerHit(n: number, round: number): boolean {
     if (this.#isComplete) return true;
 
-    this.#round++;
     const loc = this.#board.get(n);
     if (!loc) return this.#isComplete;
 
-    this.hits.add(loc);
-    this.#lastNumber = n;
+    this.hits.set(loc, n);
 
     // housekeeping here avoids having to walk the grid later
-    const [r, c] = loc.split(",").map((n) => parseInt(n));
+    const [r, c] = loc;
     this.#rows[r]++;
     this.#cols[c]++;
 
@@ -47,33 +45,30 @@ class Board {
       this.#diags[1]++;
     }
 
-    return this.isComplete();
+    return this.isComplete(round);
   }
 
-  isComplete(): boolean {
+  isComplete(round: number): boolean {
     if (this.#isComplete) return true;
 
     const isFull = (n: number) => n === 5;
     const done = this.#rows.some(isFull) || this.#cols.some(isFull) ||
       this.#diags.some(isFull);
 
-    if (done) this.#isComplete = true;
+    if (done) {
+      this.#isComplete = true;
+      this.finishedAtRound = round;
+    }
     return done;
   }
 
-  sumUnmarked(): number {
-    return Array.from(this.#board.entries()).filter(([_, loc]) =>
+  score(): number {
+    const lastNum = Array.from(this.hits.values()).pop() || 0;
+    const unmarkedSum = Array.from(this.#board.entries()).filter(([_, loc]) =>
       !this.hits.has(loc)
     ).map(([n, _]) => n).reduce((sum, el) => sum + el, 0);
-  }
 
-  // this assumes that the board is actually finished
-  finishedAtRound(): number {
-    return this.#round;
-  }
-
-  score(): number {
-    return this.sumUnmarked() * this.#lastNumber;
+    return unmarkedSum * lastNum;
   }
 }
 
@@ -102,11 +97,11 @@ class Game {
 
   play(wantLast = false): number {
     // we play the game to completion every time, because why not
-    for (const num of this.seq) {
-      this.boards.forEach((b) => b.registerHit(num));
-    }
+    this.seq.forEach((num, round) => {
+      this.boards.forEach((b) => b.registerHit(num, round));
+    });
 
-    this.boards.sort((a, b) => a.finishedAtRound() - b.finishedAtRound());
+    this.boards.sort((a, b) => a.finishedAtRound - b.finishedAtRound);
 
     const winner = wantLast ? this.boards.pop() : this.boards[0];
     if (!winner) throw "no winner found?";
