@@ -5,7 +5,6 @@ class Board {
   #board: Map<number, [number, number]>;
   #rows = [0, 0, 0, 0, 0];
   #cols = [0, 0, 0, 0, 0];
-  #diags = [0, 0];
   finishedAtRound = Infinity;
   #isComplete = false;
 
@@ -39,12 +38,6 @@ class Board {
     this.#rows[r]++;
     this.#cols[c]++;
 
-    if (r === c) {
-      this.#diags[0]++;
-    } else if (r + c === 4) {
-      this.#diags[1]++;
-    }
-
     return this.isComplete(round);
   }
 
@@ -52,8 +45,7 @@ class Board {
     if (this.#isComplete) return true;
 
     const isFull = (n: number) => n === 5;
-    const done = this.#rows.some(isFull) || this.#cols.some(isFull) ||
-      this.#diags.some(isFull);
+    const done = this.#rows.some(isFull) || this.#cols.some(isFull);
 
     if (done) {
       this.#isComplete = true;
