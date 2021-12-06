@@ -20,3 +20,23 @@ export function* range(x: number, y?: number, z?: number) {
     yield i;
   }
 }
+
+export class DefaultMap<K, V> extends Map<K, V> {
+  #defaultVal: V;
+
+  constructor(defaultVal: V) {
+    super();
+    this.#defaultVal = defaultVal;
+  }
+
+  get(k: K): V {
+    let have = super.get(k);
+
+    if (typeof have === "undefined") {
+      this.set(k, this.#defaultVal);
+      have = this.#defaultVal;
+    }
+
+    return have;
+  }
+}
