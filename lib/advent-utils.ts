@@ -1,13 +1,13 @@
-export function fileLines(filename: string, keepBlanks = false): string[] {
+export const fileLines = (filename: string, keepBlanks = false): string[] => {
   const data = Deno.readFileSync(filename);
   const text = new TextDecoder().decode(data);
   const lines = text.split("\n");
   return keepBlanks ? lines : lines.filter((s) => s.length > 0);
-}
+};
 
-export function fileLinesInt(filename: string): number[] {
+export const fileLinesInt = (filename: string): number[] => {
   return fileLines(filename).map((n) => parseInt(n));
-}
+};
 
 // python's range(); it is bananas that JS does not have this by default
 export function* range(x: number, y?: number, z?: number) {
