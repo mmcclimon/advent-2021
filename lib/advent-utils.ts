@@ -40,3 +40,28 @@ export class DefaultMap<K, V> extends Map<K, V> {
     return have;
   }
 }
+
+export class UsableSet<T> extends Set<T> {
+  union(other: Set<T>): UsableSet<T> {
+    const ret = new UsableSet(this);
+    Array.from(other).forEach((elem) => ret.add(elem));
+    return ret;
+  }
+
+  // everything in this that's not in other
+  difference(other: Set<T>): UsableSet<T> {
+    return new UsableSet([...this].filter((elem) => !other.has(elem)));
+  }
+
+  intersection(other: Set<T>): UsableSet<T> {
+    return new UsableSet([...this].filter((elem) => other.has(elem)));
+  }
+
+  isSupersetOf(other: Set<T>): boolean {
+    return Array.from(other).every((elem) => this.has(elem));
+  }
+
+  isSubsetOf(other: Set<T>): boolean {
+    return Array.from(this).every((elem) => other.has(elem));
+  }
+}

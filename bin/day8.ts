@@ -1,110 +1,69 @@
-import { fileLines } from "../lib/advent-utils.ts";
+import { fileLines, UsableSet } from "../lib/advent-utils.ts";
 
 const fileInput = fileLines("input/day8.txt");
 
-const digitFor = (s: string): number | undefined => {
-  switch (s.length) {
-    case 2:
-      return 1;
-    case 3:
-      return 7;
-    case 4:
-      return 4;
-    case 7:
-      return 8;
-    default:
-      return;
-  }
-};
-
 const parseLine = (line: string) => {
-  const [input, output] = line.split(" | ").map((s) => s.split(" "));
+  const [input, output] = line.split(" | ").map((s) =>
+    s.split(" ").map((word) => word.split("").sort().join(""))
+  );
   const full = [...input, ...output];
 
   const m = [];
 
   for (const word of full) {
-    switch (word.length) {
-      case 2: // 1
-        m[1] = word;
-        break;
-      case 3: // 7
-        m[7] = word;
-        break;
-      case 4: // 4
-        m[4] = word;
-        break;
-      case 7: // 8
-        m[8] = word;
-        break;
-    }
+    const len = word.length;
+
+    // deno-fmt-ignore
+    const idx = len === 2 ? 1
+              : len === 3 ? 7
+              : len === 4 ? 4
+              : len === 7 ? 8
+              : null;
+
+    if (idx) m[idx] = word;
   }
 
+  // we can actually do everything we want with just one and 4
+  const one = new UsableSet(m[1]);
+  const four = new UsableSet(m[4]);
+  const northwest = four.difference(one); // top-left and middle segments
+
   for (const word of full) {
-    const s = new Set(word);
+    const chars = new UsableSet(word);
 
     if (word.length === 6) { // 0, 6, or 9
-      // if everything in 4 is also in this, it's 9
-      if (Array.from(m[4]).every((seg) => s.has(seg))) {
-        m[9] = word;
-      } else {
-        // if everything in 1 is also in this, it's 0, otherwise it's 6
-        if (Array.from(m[1]).every((seg) => s.has(seg))) {
-          m[0] = word;
-        } else {
-          m[6] = word;
-        }
-      }
-    } else if (word.length === 5) { // 2, 3, or 5
-      // if it's got all of 1, it's 3
-      if (Array.from(m[1]).every((seg) => s.has(seg))) {
-        m[3] = word;
-      } else {
-        // grab top-left and middle segments from 4; if it's got those, it's
-        // 5, otherwise 2
-        const relevant = new Set(m[4]);
-        Array.from(m[1]).forEach((c) => relevant.delete(c));
+      // deno-fmt-ignore
+      const idx = chars.isSupersetOf(four) ? 9
+                : chars.isSupersetOf(one)  ? 0
+                :                            6;
 
-        if (Array.from(relevant).every((seg) => s.has(seg))) {
-          m[5] = word;
-        } else {
-          m[2] = word;
-        }
-      }
+      m[idx] = word;
+    }
+
+    if (word.length === 5) { // 2, 3, or 5
+      // deno-fmt-ignore
+      const idx = chars.isSupersetOf(one)       ? 3
+                : chars.isSupersetOf(northwest) ? 5
+                :                                 2;
+
+      m[idx] = word;
     }
   }
 
   const lookup = new Map();
-  m.forEach((s, idx) => lookup.set(s.split("").sort().join(""), idx));
+  m.forEach((s, idx) => lookup.set(s, idx));
 
-  const s = output.map((word) =>
-    String(lookup.get(word.split("").sort().join("")) ?? "X")
-  ).join("");
-
-  return Number(s);
+  return Number(output.map((word) => String(lookup.get(word) ?? "X")).join(""));
 };
 
-const part1 = (lines: string[]): number => {
-  let total = 0;
-  for (const line of lines) {
-    const [_input, output] = line.split(" | ");
+const part1 = (lines: string[]): number =>
+  lines.map((line) => String(parseLine(line)).match(/[1478]/g)).reduce(
+    (sum, match) => sum += match ? match.length : 0,
+    0,
+  );
 
-    for (const s of output.split(" ")) {
-      const d = digitFor(s);
-      total += d ? 1 : 0;
-    }
-  }
-  return total;
-};
-
-const part2 = (lines: string[]): number => {
-  let total = 0;
-  for (const line of lines) {
-    const s = parseLine(line);
-    total += s;
-  }
-  return total;
-};
+const part2 = (lines: string[]): number =>
+  lines.reduce((sum, line) => sum + parseLine(line), 0);
 
 console.log(part1(fileInput));
 console.log(part2(fileInput));
