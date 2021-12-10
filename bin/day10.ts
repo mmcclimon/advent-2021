@@ -21,7 +21,12 @@ const pairs = new Map([
   ["[", "]"],
 ]);
 
-const firstBadChar = (s: string): [string | undefined, string[]] => {
+interface Score {
+  [index: string]: number;
+}
+
+// [completion, badChar]
+const parseLine = (s: string): [string[] | null, string | null] => {
   const stack = [];
   for (const c of s) {
     if (pairs.has(c)) {
@@ -30,61 +35,43 @@ const firstBadChar = (s: string): [string | undefined, string[]] => {
     }
 
     const prev = stack.pop() || "";
-
     if (c !== pairs.get(prev)) {
-      return [c, stack];
+      return [null, c];
     }
   }
 
-  return [undefined, stack];
+  return [stack.reverse().map((c) => pairs.get(c) || ""), null];
 };
 
-const part1 = (lines: string[]): number => {
-  let total = 0;
-  for (const line of lines) {
-    const [c] = firstBadChar(line);
-    total += c === ")"
-      ? 3
-      : c === "]"
-      ? 57
-      : c === "}"
-      ? 1197
-      : c === ">"
-      ? 25137
-      : 0;
-  }
+const scores1: Score = { ")": 3, "]": 57, "}": 1197, ">": 25137 };
+const scores2: Score = { ")": 1, "]": 2, "}": 3, ">": 4 };
 
-  return total;
+const scoreFor = (c: string, part: number): number => {
+  const which = part == 1 ? scores1 : scores2;
+  return which[c] ?? 0;
 };
 
-const part2 = (lines: string[]): number => {
-  const scores = [];
+const calculate = (lines: string[]): [number, number] => {
+  let part1 = 0;
+  const part2: number[] = [];
 
-  for (const line of lines) {
-    const [bad, stack] = firstBadChar(line);
-    if (bad) continue;
+  lines.forEach((line) => {
+    const [completion, badChar] = parseLine(line);
 
-    let total = 0;
-    while (stack.length > 0) {
-      const c = pairs.get(stack.pop() || "");
-      const points = c === ")"
-        ? 1
-        : c === "]"
-        ? 2
-        : c === "}"
-        ? 3
-        : c === ">"
-        ? 4
-        : 0;
-
-      total = total * 5 + points;
+    if (badChar) {
+      part1 += scoreFor(badChar, 1);
     }
 
-    scores.push(total);
-  }
+    if (completion) {
+      part2.push(completion.reduce((prod, c) => prod * 5 + scoreFor(c, 2), 0));
+    }
+  });
 
-  return scores.sort((a, b) => a - b)[Math.floor(scores.length / 2)];
+  part2.sort((a, b) => a - b);
+
+  return [part1, part2[Math.floor(part2.length / 2)]];
 };
 
-console.log(part1(lines));
-console.log(part2(lines));
+const [part1, part2] = calculate(lines);
+console.log(`part 1: ${part1}`);
+console.log(`part 2: ${part2}`);
