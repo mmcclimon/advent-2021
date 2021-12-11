@@ -12,63 +12,54 @@ lines.forEach((line, row) => {
 });
 
 const neighborsOf = (grid: Grid, key: string): string[] => {
-  const [row, col] = key.split("#");
-  const candidates: string[] = [];
-  [-1, 0, 1].forEach((dr) => {
-    [-1, 0, 1].forEach((dc) => {
-      const k = [Number(row) + dr, Number(col) + dc].join("#");
-      if (grid.has(k) && k !== key) {
-        candidates.push(k);
-      }
-    });
-  });
+  const [row, col] = key.split("#").map(Number);
 
-  return candidates;
+  return [-1, 0, 1].map((dr) =>
+    [-1, 0, 1].map((dc) => [row + dr, col + dc].join("#"))
+  ).flat().filter((k) => grid.has(k) && k !== key);
 };
 
 const runStep = (grid: Grid): number => {
   // first, inc all
-  Array.from(grid.keys()).forEach((k) => grid.set(k, grid.get(k) + 1));
+  grid.forEach((v, k) => grid.set(k, v + 1));
 
-  // flash everything
-  const toFlash: Set<string> = new Set();
+  // flash everything > 9
   const flashed: Set<string> = new Set();
-
-  Array.from(grid.entries()).filter(([_, v]) => v > 9).forEach(([k, _]) =>
-    toFlash.add(k)
+  const toFlash: Set<string> = new Set(
+    Array.from(grid.keys()).filter((k) => grid.get(k) > 9),
   );
 
   while (toFlash.size) {
-    const thisK = Array.from(toFlash.values())[0];
-    toFlash.delete(thisK);
+    // pop off an element and process it
+    const key = toFlash.values().next().value;
+    toFlash.delete(key);
+    flashed.add(key);
 
-    flashed.add(thisK);
+    // increment every neighbor; if it hasn't already flashed this time, it
+    // goes off too.
+    neighborsOf(grid, key).forEach((k) => {
+      const newval = grid.get(k) + 1;
+      grid.set(k, newval);
 
-    neighborsOf(grid, thisK).forEach((k) => {
-      const val = grid.get(k) + 1;
-      grid.set(k, val);
-
-      if (val > 9 && !flashed.has(k)) toFlash.add(k);
+      if (newval > 9 && !flashed.has(k)) toFlash.add(k);
     });
   }
 
   // set everything that flashed to 0
   flashed.forEach((k) => grid.set(k, 0));
-
   return flashed.size;
 };
 
 // gooooo
-let steps = 0;
 let total = 0;
 
-while (true) {
+for (let step = 1; true; step++) {
   const flashed = runStep(grid);
   total += flashed;
-  steps++;
 
-  if (steps === 100) console.log(`part 1: ${total}`);
-  if (flashed === grid.size) break;
+  if (step === 100) console.log(`part 1: ${total}`);
+  if (flashed === grid.size) {
+    console.log(`part 2: ${step}`);
+    break;
+  }
 }
-
-console.log(`part 2: ${steps}`);
