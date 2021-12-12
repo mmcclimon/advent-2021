@@ -30,14 +30,8 @@ export class DefaultMap<K, V> extends Map<K, V> {
   }
 
   get(k: K): V {
-    let have = super.get(k);
-
-    if (typeof have === "undefined") {
-      this.set(k, this.#defaultVal);
-      have = this.#defaultVal;
-    }
-
-    return have;
+    if (!this.has(k)) this.set(k, this.#defaultVal);
+    return super.get(k) ?? this.#defaultVal;
   }
 }
 
