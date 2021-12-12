@@ -1,37 +1,16 @@
 import { fileLines } from "../lib/advent-utils.ts";
+import { NumberGrid } from "../lib/grid.ts";
 
 const lines = fileLines("input/day9.txt");
+const grid = new NumberGrid(lines);
 
-const grid = new Map();
-lines.forEach((l, row) =>
-  l.split("").forEach((n, col) => grid.set(`${row}#${col}`, parseInt(n)))
-);
-
-const neighborCoords = (grid: Map<string, number>, key: string): string[] => {
-  const [row, col] = key.split("#").map((n) => parseInt(n));
-
-  const possible = [
-    [row, col - 1],
-    [row, col + 1],
-    [row - 1, col],
-    [row + 1, col],
-  ];
-
-  return possible.map((pair) => pair.join("#")).filter((k) =>
-    typeof grid.get(k) !== "undefined"
-  );
-};
-
-const neighborsOf = (grid: Map<string, number>, key: string): number[] =>
-  neighborCoords(grid, key).map((k) => grid.get(k)) as number[];
-
-const findLowPoints = (grid: Map<string, number>): string[] => {
+const findLowPoints = (grid: NumberGrid): string[] => {
   const lowPoints = [];
 
   for (const [key, num] of grid.entries()) {
     if (num === 9) continue;
 
-    const neighbors = neighborsOf(grid, key);
+    const neighbors = grid.neighborValues(key, false);
 
     if (num === Math.min(num, ...neighbors)) {
       lowPoints.push(key);
@@ -41,10 +20,7 @@ const findLowPoints = (grid: Map<string, number>): string[] => {
   return lowPoints;
 };
 
-const calcBasins = (
-  grid: Map<string, number>,
-  lowPoints: string[],
-): number[] => {
+const calcBasins = (grid: NumberGrid, lowPoints: string[]): number[] => {
   const basins = [];
 
   // every year I say I'm gonna learn DFS, and every year I copy it from dang
@@ -59,7 +35,9 @@ const calcBasins = (
 
       if (!seen.has(point)) {
         seen.add(point);
-        S.push(...neighborCoords(grid, point).filter((k) => grid.get(k) !== 9));
+        S.push(
+          ...grid.neighborKeys(point, false).filter((k) => grid.get(k) !== 9),
+        );
       }
     }
 

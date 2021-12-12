@@ -1,4 +1,4 @@
-import { fileLines } from "../lib/advent-utils.ts";
+import { DefaultMap, fileLines } from "../lib/advent-utils.ts";
 
 const lines = fileLines("input/day5.txt");
 
@@ -17,8 +17,8 @@ const _test = [
 
 const parseLine = (line: string): [number, number][] => {
   const [start, end] = line.split(" -> ");
-  const [startX, startY] = start.split(",").map((n) => parseInt(n));
-  const [endX, endY] = end.split(",").map((n) => parseInt(n));
+  const [startX, startY] = start.split(",").map(Number);
+  const [endX, endY] = end.split(",").map(Number);
 
   const numSteps = Math.max(Math.abs(startX - endX), Math.abs(startY - endY));
 
@@ -39,29 +39,25 @@ const parseLine = (line: string): [number, number][] => {
 };
 
 const calculate = (lines: string[]) => {
-  const grid1 = new Map();
-  const grid2 = new Map();
+  const grid1: DefaultMap<string, number> = new DefaultMap(0);
+  const grid2: DefaultMap<string, number> = new DefaultMap(0);
 
   for (const line of lines) {
     const points = parseLine(line);
 
-    const isHorizontal = points.map(([x, _]) => x).every((v) =>
-      v == points[0][0]
-    );
-    const isVertical = points.map(([_, y]) => y).every((v) =>
-      v == points[0][1]
-    );
+    const isHorizontal = points.every(([x, _]) => x == points[0][0]);
+    const isVertical = points.every(([_, y]) => y == points[0][1]);
 
     points.forEach((pair) => {
       const k = pair.join("#");
       if (isHorizontal || isVertical) {
-        grid1.set(k, (grid1.get(k) || 0) + 1);
+        grid1.set(k, grid1.get(k) + 1);
       }
-      grid2.set(k, (grid2.get(k) || 0) + 1);
+      grid2.set(k, grid2.get(k) + 1);
     });
   }
 
-  const findOverlaps = (grid: Map<string, number>) =>
+  const findOverlaps = (grid: DefaultMap<string, number>) =>
     Array.from(grid.values()).filter((v) => v > 1).length;
 
   console.log(`part 1: ${findOverlaps(grid1)}`);

@@ -1,27 +1,12 @@
-import { DefaultMap, fileLines } from "../lib/advent-utils.ts";
-
-type Grid = DefaultMap<string, number>;
+import { fileLines } from "../lib/advent-utils.ts";
+import { NumberGrid } from "../lib/grid.ts";
 
 const lines = fileLines("input/day11.txt");
-const grid: Grid = new DefaultMap(0);
+const grid = new NumberGrid(lines);
 
-lines.forEach((line, row) => {
-  line.split("").forEach((c, col) => {
-    grid.set(`${row}#${col}`, Number(c));
-  });
-});
-
-const neighborsOf = (grid: Grid, key: string): string[] => {
-  const [row, col] = key.split("#").map(Number);
-
-  return [-1, 0, 1].map((dr) =>
-    [-1, 0, 1].map((dc) => [row + dr, col + dc].join("#"))
-  ).flat().filter((k) => grid.has(k) && k !== key);
-};
-
-const runStep = (grid: Grid): number => {
+const runStep = (grid: NumberGrid): number => {
   // first, inc all
-  grid.forEach((v, k) => grid.set(k, v + 1));
+  grid.forEach((_, k) => grid.inc(k));
 
   // flash everything > 9
   const flashed: Set<string> = new Set();
@@ -37,10 +22,8 @@ const runStep = (grid: Grid): number => {
 
     // increment every neighbor; if it hasn't already flashed this time, it
     // goes off too.
-    neighborsOf(grid, key).forEach((k) => {
-      const newval = grid.get(k) + 1;
-      grid.set(k, newval);
-
+    grid.neighborKeys(key).forEach((k) => {
+      const newval = grid.inc(k);
       if (newval > 9 && !flashed.has(k)) toFlash.add(k);
     });
   }
