@@ -2,27 +2,6 @@ import { fileLines } from "../lib/advent-utils.ts";
 
 const lines = fileLines("input/day12.txt");
 
-const _lines = [
-  "fs-end",
-  "he-DX",
-  "fs-he",
-  "start-DX",
-  "pj-DX",
-  "end-zg",
-  "zg-sl",
-  "zg-pj",
-  "pj-he",
-  "RW-he",
-  "fs-DX",
-  "pj-RW",
-  "zg-RW",
-  "start-pj",
-  "he-WI",
-  "zg-he",
-  "pj-fs",
-  "start-RW",
-];
-
 const graph: Map<string, Set<string>> = new Map();
 for (const line of lines) {
   const [a, b] = line.split("-");
@@ -34,11 +13,10 @@ for (const line of lines) {
   graph.get(b)?.add(a);
 }
 
+graph.forEach((v) => v.delete("start")); // no backtracking
 graph.delete("end"); // no paths from end backwards
 
 const edgeIsLegal = (path: string[], edge: string, part2 = false): boolean => {
-  if (edge === "start") return false;
-  if (path.includes("end")) return false;
   if (edge.match(/^[A-Z]+$/)) return true; // always legal
   if (!path.includes(edge)) return true; // always legal
   if (!part2) return false; // we've seen it before, no good
@@ -54,28 +32,23 @@ const edgeIsLegal = (path: string[], edge: string, part2 = false): boolean => {
   return !Array.from(counts.values()).some((count) => count > 1);
 };
 
-// modified bfs
-const search = (part2: boolean): number => {
-  const queue: string[][] = [["start"]];
-  let paths = 0;
+const dfs = (path: string[], part2: boolean, cb: (p?: string[]) => void) => {
+  const node = path[path.length - 1];
 
-  while (queue.length) {
-    const path = queue.shift() ?? [];
-    const last = path[path.length - 1];
+  if (node === "end") cb(path);
 
-    if (last == "end") paths++;
-
-    const edges = graph.get(last) ?? new Set();
-    for (const edge of edges.values()) {
-      if (edgeIsLegal(path, edge, part2)) {
-        queue.push(path.slice().concat(edge));
-      }
+  graph.get(node)?.forEach((edge) => {
+    if (edgeIsLegal(path, edge, part2)) {
+      dfs(path.slice().concat(edge), part2, cb);
     }
-  }
-
-  return paths;
+  });
 };
 
-console.log("btw, this is pretty slow...");
-console.log(search(false));
-console.log(search(true));
+const doPart = (n: number): number => {
+  let total = 0;
+  dfs(["start"], n === 2, () => total++);
+  return total;
+};
+
+console.log(doPart(1));
+console.log(doPart(2));
