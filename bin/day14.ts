@@ -1,22 +1,14 @@
 import { DefaultMap, fileLines } from "../lib/advent-utils.ts";
 
 const lines = fileLines("input/day14.txt");
-const start = "ONHOOSCKBSVHBNKFKSBK";
+const start = lines.shift() ?? "";
 
-const lookup = new Map();
-lines.forEach((line) => {
-  const [a, b] = line.split(" -> ");
-  lookup.set(a, b);
-});
+const lookup = new Map(
+  lines.map((line) => line.split(" -> ") as [string, string]),
+);
 
-// keep a map of bigrams => count
-// for every bigram:
-//   reduce its count by however many we have
-//   determine the new bigrams
-//   increase them all by however many of the old we had
 const expand = (s: string, numSteps = 1) => {
   const bigrams: DefaultMap<string, number> = new DefaultMap(0);
-  const lastLetter = s.charAt(s.length - 1); // for later
 
   // generate the initial list
   for (let i = 0; i < s.length - 1; i++) {
@@ -39,16 +31,21 @@ const expand = (s: string, numSteps = 1) => {
     });
   }
 
-  // generate letter counts
+  return calcAnswer(s, bigrams);
+};
+
+const calcAnswer = (start: string, bigrams: Map<string, number>): number => {
+  const lastLetter = start.charAt(start.length - 1); // for later
   const counts = new Map([[lastLetter, 1]]);
+
   bigrams.forEach((count, pair) => {
     const letter = pair.charAt(0);
     counts.set(letter, (counts.get(letter) || 0) + count);
   });
 
-  const most = Math.max(...counts.values());
-  const least = Math.min(...counts.values());
-  return most - least;
+  const max = Math.max(...counts.values());
+  const min = Math.min(...counts.values());
+  return max - min;
 };
 
 console.log(expand(start, 10));
