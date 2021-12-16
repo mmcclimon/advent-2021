@@ -1,36 +1,58 @@
 import { fileLines } from "../lib/advent-utils.ts";
 
-// const s = "A0016C880162017C3686B18A3D4780";
+const LENGTH_TYPE = "0";
+type PacketType =
+  | "LITERAL"
+  | "OP_SUM"
+  | "OP_PROD"
+  | "OP_MIN"
+  | "OP_MAX"
+  | "OP_GT"
+  | "OP_LT"
+  | "OP_EQ";
 
 const [s] = fileLines("input/day16.txt");
-// const s = "9C0141080250320F1802104A08";
-
-const FIFTEEN_BIT_TYPE = "0";
-// const ELEVEN_BIT_TYPE = "1";
-
-const types = {
-  LITERAL: 4,
-};
 
 class Packet {
   version = 0;
-  typeId = 0;
-  val = 0;
-  length = 0;
-  lengthType = "-1";
+  raw = "";
+  lengthType?: number;
   children: Packet[] = [];
+  kind?: PacketType;
 
-  constructor(args: { version: number; typeId: number }) {
-    this.version = args.version;
-    this.typeId = args.typeId;
+  get length(): number {
+    return this.raw.length;
   }
 
-  get kind(): number {
-    return this.typeId;
-  }
-
-  setValue(n: number) {
-    this.val = n;
+  set typeId(n: number) {
+    switch (n) {
+      case 0:
+        this.kind = "OP_SUM";
+        break;
+      case 1:
+        this.kind = "OP_PROD";
+        break;
+      case 2:
+        this.kind = "OP_MIN";
+        break;
+      case 3:
+        this.kind = "OP_MAX";
+        break;
+      case 4:
+        this.kind = "LITERAL";
+        break;
+      case 5:
+        this.kind = "OP_GT";
+        break;
+      case 6:
+        this.kind = "OP_LT";
+        break;
+      case 7:
+        this.kind = "OP_EQ";
+        break;
+      default:
+        throw `unknown type ${n}`;
+    }
   }
 
   versionSum(): number {
@@ -44,36 +66,38 @@ class Packet {
     return sum + this.version;
   }
 
+  get literalValue(): number {
+    if (this.kind !== "LITERAL") throw "nonsensical literalValue() call";
+
+    let s = this.raw.substr(6);
+    let val = "";
+    while (s.length) {
+      const hunk = s.substring(0, 5);
+      val += hunk.substring(1);
+      s = s.substring(5);
+    }
+    return parseInt(val, 2);
+  }
+
   value(): number {
-    switch (this.typeId) {
-      case 0:
-        return this.children.map((p) => p.value()).reduce(
-          (sum, el) => sum + el,
-          0,
-        );
-      case 1:
-        return this.children.map((p) => p.value()).reduce(
-          (prod, el) => prod * el,
-          1,
-        );
-      case 2:
-        return this.children.map((p) => p.value()).reduce(
-          (min, el) => Math.min(min, el),
-          Infinity,
-        );
-      case 3:
-        return this.children.map((p) => p.value()).reduce(
-          (max, el) => Math.max(max, el),
-          -Infinity,
-        );
-      case 4:
-        return this.val;
-      case 5:
-        return this.children[0].value() > this.children[1].value() ? 1 : 0;
-      case 6:
-        return this.children[0].value() < this.children[1].value() ? 1 : 0;
-      case 7:
-        return this.children[0].value() === this.children[1].value() ? 1 : 0;
+    const vals = this.children.map((p) => p.value());
+    switch (this.kind) {
+      case "OP_SUM":
+        return vals.reduce((sum, el) => sum + el);
+      case "OP_PROD":
+        return vals.reduce((prod, el) => prod * el);
+      case "OP_MIN":
+        return vals.reduce((min, el) => Math.min(min, el));
+      case "OP_MAX":
+        return vals.reduce((max, el) => Math.max(max, el));
+      case "LITERAL":
+        return this.literalValue;
+      case "OP_GT":
+        return vals[0] > vals[1] ? 1 : 0;
+      case "OP_LT":
+        return vals[0] < vals[1] ? 1 : 0;
+      case "OP_EQ":
+        return vals[0] === vals[1] ? 1 : 0;
     }
 
     throw `unreachable`;
@@ -83,103 +107,59 @@ class Packet {
 const hexToBin = (s: string): string =>
   s.split("").map((c) => parseInt(c, 16).toString(2).padStart(4, "0")).join("");
 
-const parseHeader = (s: string): [number, number] => {
-  const vstring = s.substring(0, 3);
-  const tstring = s.substring(3, 6);
-  return [vstring, tstring].map((bin) => parseInt(bin, 2)) as [number, number];
-};
+const binToDec = (s: string): number => parseInt(s, 2);
 
-const parseSinglePacket = (s: string, parent?: Packet): Packet | undefined => {
-  if (s.length < 6) {
-    console.log(`too short string! ${s}`);
-    return;
-  }
-
-  // console.log(`START: ${s}`);
-  let ptr = 0;
-
-  const [version, typeId] = parseHeader(s);
+const parseSinglePacket = (s: string): Packet => {
+  const packet = new Packet();
 
   const snip = (amt: number) => {
+    const hunk = s.substring(0, amt);
+    packet.raw += hunk;
     s = s.substring(amt);
-    ptr += amt;
+    return hunk;
   };
 
-  const packet = new Packet({
-    version: version,
-    typeId: typeId,
-  });
+  // parse the header
+  packet.version = binToDec(snip(3));
+  packet.typeId = binToDec(snip(3));
 
-  // slice off header
-  snip(6);
-
-  if (packet.kind === types.LITERAL) {
+  if (packet.kind === "LITERAL") {
     // console.log("LITERAL");
-    let val = "";
+    // for literal values, we'll defer the parsing until later
     while (true) {
-      const hunk = s.substring(0, 5);
-      val += hunk.substring(1);
-      // console.log(hunk);
-      snip(5);
-
-      if (hunk.charAt(0) === "0") {
-        // console.log("quitting!");
-        break;
-      }
+      const hunk = snip(5);
+      if (hunk.charAt(0) === "0") break;
     }
-    // console.log(`  binary literal value: ${val}`);
 
-    packet.setValue(parseInt(val, 2));
-  } else {
-    // console.log("OPERATOR");
-    const lengthTypeId = s.substring(0, 1);
-    snip(1);
-
-    packet.lengthType = lengthTypeId;
-
-    if (lengthTypeId === FIFTEEN_BIT_TYPE) {
-      // console.log("LTYPE LEN");
-      const toParse = s.substring(0, 15);
-      const lenToParse = parseInt(toParse, 2);
-      snip(15);
-
-      // console.log(`to parse: ${lenToParse} (${toParse})`);
-      let subS = s.substring(0, lenToParse);
-
-      while (true) {
-        const p = parseSinglePacket(subS, packet);
-        if (!p) break;
-        packet.children.push(p);
-
-        // console.log(`got child: ${Deno.inspect(p)}`);
-
-        subS = subS.substring(p.length);
-        if (subS.length <= 0) break;
-      }
-
-      snip(lenToParse);
-    } else {
-      // console.log("LTYPE SUB");
-      const numSubPackets = parseInt(s.substring(0, 11), 2);
-      snip(11);
-      // console.log(`subpackets: ${numSubPackets}`);
-
-      for (let i = 0; i < numSubPackets; i++) {
-        const p = parseSinglePacket(s, packet);
-        if (!p) throw `malformed packet string B: ${s}`;
-
-        packet.children.push(p);
-
-        // console.log(`child: ${Deno.inspect(p)}`);
-
-        snip(p.length);
-      }
-    }
+    return packet;
   }
 
-  // console.log(`  RETURNING ${Deno.inspect(packet)}`);
+  // console.log("OPERATOR");
+  const lengthTypeId = snip(1);
+  packet.lengthType = Number(lengthTypeId);
 
-  packet.length = ptr;
+  if (lengthTypeId === LENGTH_TYPE) {
+    // length-type operator, parse a set length
+    const lenToParse = binToDec(snip(15));
+    let sub = snip(lenToParse);
+
+    while (sub.length > 0) {
+      const p = parseSinglePacket(sub);
+      packet.children.push(p);
+      sub = sub.substring(p.length);
+    }
+
+    return packet;
+  }
+
+  // subpacket-type operator
+  const numSubPackets = binToDec(snip(11));
+
+  for (let i = 0; i < numSubPackets; i++) {
+    const p = parseSinglePacket(s);
+    packet.children.push(p);
+    snip(p.length);
+  }
 
   return packet;
 };
@@ -188,5 +168,5 @@ const bin = hexToBin(s);
 const packet = parseSinglePacket(bin);
 
 // console.log(Deno.inspect(packet, { depth: 50 }));
-console.log(`sum: ${packet?.versionSum()}`);
-console.log(`value: ${packet?.value()}`);
+console.log(`part1: ${packet.versionSum()}`);
+console.log(`part2: ${packet.value()}`);
