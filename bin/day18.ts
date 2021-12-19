@@ -19,28 +19,13 @@ abstract class SnailNode {
   }
 
   get depth(): number {
-    let d = 0;
-    let par = this.parent;
-    while (par) {
-      par = par.parent;
-      d++;
-    }
-
-    return d;
+    if (!this.parent) return 0;
+    return 1 + (this.parent as SnailNode).depth;
   }
 
   get root(): SnailNode {
     if (!this.parent) return this;
-
-    // deno-lint-ignore no-this-alias
-    let cur: SnailNode | null = this;
-    while (cur) {
-      const next: SnailNode | null = cur.parent;
-      if (!next) return cur;
-      cur = next;
-    }
-
-    throw "unreachable";
+    return this.parent.root;
   }
 
   replaceSelf(replacement: SnailNode) {
