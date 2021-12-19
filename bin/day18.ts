@@ -2,76 +2,20 @@ import { fileLines } from "../lib/advent-utils.ts";
 
 const lines = fileLines("input/day18.txt");
 
-// a node is EITHER a tree or a leaf
-type NodeType = "TREE" | "LEAF";
+abstract class SnailNode {
+  protected parent: SnailPair | null;
 
-const parse = (s: string, parent?: SnailNode): SnailNode => {
-  // first, split it into parts (the first top-level comma)
-  let depth = 0, mid = 0;
-  for (let i = 1; i < s.length - 1; i++) {
-    const c = s[i];
-    if (depth === 0 && c === ",") {
-      mid = i;
-      break;
-    }
-
-    if (c === "[") depth++;
-    if (c === "]") depth--;
+  constructor() {
+    this.parent = null;
   }
 
-  const lhs = s.substring(1, mid);
-  const rhs = s.substring(mid + 1, s.length - 1);
+  abstract isLeaf(): boolean;
+  abstract isPair(): boolean;
+  abstract magnitude(): number;
+  abstract childLeaves(): SnailLeaf[];
 
-  const node = new SnailNode();
-  if (parent) node.parent = parent;
-
-  node.left = parseNode(lhs, node);
-  node.right = parseNode(rhs, node);
-  return node;
-};
-
-const parseNode = (s: string, parent: SnailNode): SnailNode => {
-  if (s.length === 1) {
-    return SnailNode.Leaf(Number(s), parent);
-  }
-
-  return parse(s, parent);
-};
-
-class SnailNode {
-  value?: number;
-  left?: SnailNode;
-  right?: SnailNode;
-  parent?: SnailNode;
-
-  static Leaf(n: number, parent: SnailNode): SnailNode {
-    const node = new SnailNode();
-    node.value = n;
-    node.parent = parent;
-    return node;
-  }
-
-  constructor() {}
-
-  clone() {
-    return parse(String(this));
-  }
-
-  // pop pop
-  magnitude(): number {
-    if (this.kind === "LEAF") return this.value ?? 0;
-
-    const l = this.left?.magnitude() ?? 0;
-    const r = this.right?.magnitude() ?? 0;
-    return l * 3 + r * 2;
-  }
-
-  get kind(): NodeType {
-    if (typeof this.value !== "undefined") {
-      return "LEAF";
-    }
-
-    return "TREE";
+  setParent(pair: SnailPair) {
+    this.parent = pair;
   }
 
   get depth(): number {
@@ -89,9 +33,9 @@ class SnailNode {
     if (!this.parent) return this;
 
     // deno-lint-ignore no-this-alias
-    let cur: SnailNode | undefined = this;
+    let cur: SnailNode | null = this;
     while (cur) {
-      const next: SnailNode | undefined = cur.parent;
+      const next: SnailNode | null = cur.parent;
       if (!next) return cur;
       cur = next;
     }
@@ -99,163 +43,219 @@ class SnailNode {
     throw "unreachable";
   }
 
-  isBottomPair(): boolean {
-    return this.left?.kind === "LEAF" && this.right?.kind === "LEAF";
+  replaceSelf(replacement: SnailNode) {
+    const parent = this.parent;
+    if (!parent) throw ("no parent to replace");
+
+    replacement.parent = parent;
+
+    if (parent.left === this) {
+      parent.left = replacement;
+    } else if (parent.right === this) {
+      parent.right = replacement;
+    } else {
+      throw new Error(`no child matching ${this}`);
+    }
+  }
+}
+
+class SnailLeaf extends SnailNode {
+  value: number;
+
+  constructor(value: number) {
+    super();
+    this.value = value;
   }
 
-  bottomPairs(): SnailNode[] {
-    if (this.kind === "LEAF") return [];
+  isLeaf(): boolean {
+    return true;
+  }
 
+  isPair(): boolean {
+    return false;
+  }
+
+  magnitude(): number {
+    return this.value;
+  }
+
+  toString(): string {
+    return String(this.value);
+  }
+
+  childLeaves() {
+    return [];
+  }
+
+  split() {
+    const left = new SnailLeaf(Math.floor(this.value / 2));
+    const right = new SnailLeaf(Math.ceil(this.value / 2));
+
+    const repl = new SnailPair(left, right);
+    this.replaceSelf(repl);
+  }
+
+  add(n: number) {
+    this.value += n;
+  }
+}
+
+class SnailPair extends SnailNode {
+  left: SnailNode;
+  right: SnailNode;
+
+  constructor(left: SnailNode, right: SnailNode) {
+    super();
+    this.left = left;
+    this.right = right;
+
+    this.left.setParent(this);
+    this.right.setParent(this);
+  }
+
+  static fromString(s: string): SnailPair {
+    // first, split it into parts (the first top-level comma)
+    const parseNode = (str: string): SnailNode => {
+      if (str.length === 1) return new SnailLeaf(Number(str));
+      return SnailPair.fromString(str);
+    };
+
+    let depth = 0, mid = 0;
+
+    s.split("").forEach((c, idx) => {
+      if (c === "[") depth++;
+      if (c === "]") depth--;
+      if (c === "," && depth === 1) mid = idx;
+    });
+
+    const left = s.substring(1, mid);
+    const right = s.substring(mid + 1, s.length - 1);
+    return new SnailPair(parseNode(left), parseNode(right));
+  }
+
+  isLeaf() {
+    return false;
+  }
+
+  isPair() {
+    return true;
+  }
+
+  clone() {
+    return SnailPair.fromString(String(this));
+  }
+
+  // pop pop
+  magnitude(): number {
+    return this.left.magnitude() * 3 + this.right.magnitude() * 2;
+  }
+
+  isBottomPair(): boolean {
+    return this.left.isLeaf() && this.right.isLeaf();
+  }
+
+  bottomPairs(): SnailPair[] {
     if (this.isBottomPair()) {
       return [this];
     }
 
-    const left = this.left?.bottomPairs() ?? [];
-    const right = this.right?.bottomPairs() ?? [];
-    // console.log(left, right);
+    const left = this.left.isPair()
+      ? (this.left as SnailPair).bottomPairs()
+      : [];
+
+    const right = this.right.isPair()
+      ? (this.right as SnailPair).bottomPairs()
+      : [];
+
     return left.concat(right);
   }
 
-  children(): SnailNode[] {
-    if (this.kind === "LEAF") return [this];
+  childLeaves(): SnailLeaf[] {
+    const left = this.left.isLeaf()
+      ? [this.left as SnailLeaf]
+      : this.left.childLeaves();
 
-    const left = this.left?.children() ?? [];
-    const right = this.right?.children() ?? [];
+    const right = this.right.isLeaf()
+      ? [this.right as SnailLeaf]
+      : this.right.childLeaves();
+
     return left.concat(right);
   }
 
   toString(): string {
-    if (this.kind === "LEAF") {
-      return String(this.value);
-    }
-
-    return `[${this.left?.toString()},${this.right?.toString()}]`;
-  }
-
-  needsExplosion(): boolean {
-    return this.bottomPairs().some((node) => node.depth >= 4);
-  }
-
-  needsSplit(): boolean {
-    return this.children().some((node) => (node.value ?? 0) >= 10);
-  }
-
-  needsReduction(): boolean {
-    return this.needsExplosion() || this.needsSplit();
+    return `[${this.left.toString()},${this.right.toString()}]`;
   }
 
   reduce() {
     if (this.parent) throw "please don't call me on a child";
 
-    // console.log(`REDUCE: ${this}`);
-
-    while (this.needsReduction()) {
-      if (this.needsExplosion()) {
-        this.explodeOnce();
-        // console.log(`after explode: ${this}`);
-        continue;
-      }
-
-      if (this.needsSplit()) {
-        this.splitOnce();
-        // console.log(`after split: ${this}`);
-      }
+    while (this.explodeOnce() || this.splitOnce()) {
+      // console.log(`  after: ${this}`);
     }
   }
 
-  explodeOnce() {
+  explodeOnce(): boolean {
     const [leftmost] = this.bottomPairs().filter((node) => node.depth >= 4);
-    leftmost?.explode();
+    if (leftmost) {
+      // console.log(`will explode: ${leftmost}`);
+      leftmost.explode();
+      return true;
+    }
+
+    return false;
   }
 
-  splitOnce() {
-    const [leftmost] = this.children().filter((node) =>
-      (node.value ?? 0) >= 10
-    );
-    leftmost?.split();
+  splitOnce(): boolean {
+    const [leftmost] = this.childLeaves().filter((leaf) => leaf.value >= 10);
+
+    if (leftmost) {
+      // console.log(`will split: ${leftmost}`);
+      leftmost.split();
+      return true;
+    }
+
+    return false;
   }
 
   explode() {
-    if (this.depth >= 4 && this.isBottomPair()) {
-      const lval = this.left?.value;
-      const rval = this.right?.value;
+    if (this.depth < 4 || !this.isBottomPair()) return;
 
-      const replacement = SnailNode.Leaf(0, this.parent as SnailNode);
-      this.parent?.replaceMe(this, replacement);
+    const lval = (this.left as SnailLeaf).value;
+    const rval = (this.right as SnailLeaf).value;
 
-      const allChildren = this.root.children();
-      const meIndex = allChildren.findIndex((el) => el === replacement);
-      // console.log(`index: ${meIndex}`);
+    const replacement = new SnailLeaf(0);
+    this.replaceSelf(replacement);
 
-      if (meIndex === -1) throw `couldn't find self?`;
+    // find ourselves in the list of children (left-to-right), move our left
+    // value leftward and move our right value rightward
+    const allChildren = this.root.childLeaves();
+    const meIndex = allChildren.findIndex((el) => el === replacement);
+    if (meIndex === -1) throw `couldn't find self?`;
 
-      if (meIndex > 0) {
-        // there are numbers to our left, add the left
-        allChildren[meIndex - 1].add(lval ?? 0);
-      }
+    const toLeft = allChildren[meIndex - 1];
+    toLeft?.add(lval ?? 0);
 
-      if (meIndex < allChildren.length - 1) {
-        // there are numbers to our right, add the right
-        allChildren[meIndex + 1].add(rval ?? 0);
-      }
-    }
+    const toRight = allChildren[meIndex + 1];
+    toRight?.add(rval ?? 0);
   }
 
-  add(n: number) {
-    if (this.kind === "TREE") throw "no way";
-    if (typeof this.value === "undefined") throw "wtf?";
-    this.value += n;
-  }
-
-  replaceMe(child: SnailNode, replacement: SnailNode) {
-    if (this.left === child) {
-      this.left = replacement;
-    } else if (this.right === child) {
-      this.right = replacement;
-    } else {
-      throw new Error(`no child matching ${child}`);
-    }
-  }
-
-  split() {
-    if (this.kind === "TREE") throw "no way";
-    const val = this.value ?? 0;
-
-    const repl = new SnailNode();
-    repl.parent = this.parent;
-    repl.left = SnailNode.Leaf(Math.floor(val / 2), repl);
-    repl.right = SnailNode.Leaf(Math.ceil(val / 2), repl);
-
-    this.parent?.replaceMe(this, repl);
+  add(other: SnailPair): SnailPair {
+    const pair = new SnailPair(this.clone(), other.clone());
+    pair.reduce();
+    return pair;
   }
 }
 
-// const num = parse(s);
+const part1 = (nums: SnailPair[]) =>
+  nums.reduce((sum, el) => sum.add(el)).magnitude();
 
-const add = (a: SnailNode, b: SnailNode): SnailNode => {
-  const ret = new SnailNode();
-
-  ret.left = a.clone();
-  ret.left.parent = ret;
-
-  ret.right = b.clone();
-  ret.right.parent = ret;
-
-  ret.reduce();
-  return ret;
-};
-
-const nums = lines.map((line) => parse(line));
-
-const part1 = (nums: SnailNode[]) =>
-  nums.reduce((sum, el) => add(sum, el)).magnitude();
-
-const part2 = (nums: SnailNode[]) => {
+const part2 = (nums: SnailPair[]) => {
   let best = 0;
+
   for (let i = 0; i < nums.length; i++) {
     for (let j = i; j < nums.length; j++) {
-      const mag1 = add(nums[i], nums[j]).magnitude();
-      const mag2 = add(nums[j], nums[i]).magnitude();
+      const mag1 = nums[i].add(nums[j]).magnitude();
+      const mag2 = nums[j].add(nums[i]).magnitude();
 
       best = Math.max(best, mag1, mag2);
     }
@@ -263,6 +263,8 @@ const part2 = (nums: SnailNode[]) => {
 
   return best;
 };
+
+const nums = lines.map((line) => SnailPair.fromString(line));
 
 console.log(part1(nums));
 console.log(part2(nums));
