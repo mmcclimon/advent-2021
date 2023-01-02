@@ -77,35 +77,46 @@ class Cuboid {
   }
 }
 
-const lines: string[] = fileLines("input/day22.txt");
+class Core {
+  INIT = new Cuboid(new Range(-50, 50), new Range(-50, 50), new Range(-50, 50));
 
-// array of cuboids
-const core1 = [];
-const core2 = [];
-
-const fifty = new Range(-50, 50);
-const initRegion = new Cuboid(fifty, fifty, fifty);
-
-for (const line of lines) {
-  const cube = Cuboid.fromString(line);
-
-  core2.forEach(item => item.subtractOverlap(cube));
-  if (cube.kind === 'on') {
-    core2.push(cube);
+  constructor() {
+    this.map = [];
+    this.init = [];
   }
 
-  // compute part 1 after
-  const initCube = initRegion.intersection(cube);
-  if (! initCube) continue;
+  add(cube: Cuboid) {
+    this.map.forEach(item => item.subtractOverlap(cube));
 
-  core1.forEach(item => item.subtractOverlap(initCube));
-  if (cube.kind === 'on') {
-    core1.push(initCube);
+    if (cube.kind === 'on') {
+      this.map.push(cube);
+    }
+
+    // if this overlaps the init region, check that too
+    const init = this.INIT.intersection(cube);
+    if (! init) return;
+
+    this.init.forEach(item => item.subtractOverlap(init));
+    if (cube.kind === 'on') {
+      this.init.push(init);
+    }
   }
+
+  private getVolume(it: Cuboid[]): number {
+    return it.map(c => c.volume).reduce((acc, el) => acc + el, 0);
+  }
+
+  volume(): number     { return this.getVolume(this.map) }
+  initVolume(): number { return this.getVolume(this.init) }
 }
 
-const part1 = core1.map(c => c.volume).reduce((acc, el) => acc + el, 0);
-const part2 = core2.map(c => c.volume).reduce((acc, el) => acc + el, 0);
+const lines: string[] = fileLines("input/day22.txt");
+const core  = new Core();
 
-console.log(`part 1: ${part1}`);
-console.log(`part 2: ${part2}`);
+lines.forEach(line => {
+  const cube = Cuboid.fromString(line);
+  core.add(cube);
+})
+
+console.log(`part 1: ${core.initVolume()}`);
+console.log(`part 2: ${core.volume()}`)
