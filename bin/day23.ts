@@ -47,10 +47,10 @@ class Amphipod {
     this.x = x;
     this.y = y;
 
+    // I'm just gonna assert that we will always move to the lowest available
+    // space in a room.
     if (this.roomIsCorrect()) {
-      if (y === 2 || burrow.thingAt(this.x, this.y + 1) instanceof Amphipod) {
-        this.isSettled = true;
-      }
+      this.isSettled = true;
     }
   }
 
@@ -59,57 +59,46 @@ class Amphipod {
   }
 
   nextPositions(burrow: Burrow): [number, number][] {
-    // console.log(`    nextPos for ${this}`)
     if (this.isSettled) return [];
     if (this.#nextPos !== null)  return this.#nextPos;
-    // console.log(`    checking ${this}`)
 
-    if (this.y === 2 && this.x === this.targetX) {
-      this.isSettled = true;
-      return [];
+    // check if we're settled
+    if (this.roomIsCorrect()) {
+      let ok = true;
+
+      for (let y = this.y + 1; y <= burrow.depth; y++) {
+        ok &&= burrow.thingAt(this.x, y).letter === this.letter;
+      }
+
+      if (ok) {
+        this.isSettled = true;
+        return []
+      }
     }
 
     this.#nextPos = [];
 
-    let canMoveIntoHallway = false;
-    const hasAvailableHallwayTile = burrow.squareIsEmpty(this.hallwayX - 1, 0)
-                                 || burrow.squareIsEmpty(this.hallwayX + 1, 0);
+    const hallway = burrow.lines[0];
 
-    if (this.y === 1) {
-      if (this.roomIsCorrect()) {
-        // console.log(`  room is correct`)
-        const below = burrow.thingAt(this.x, this.y + 1);
+    if (this.isInRoom()) {
+      const hasAvailableHallwayTile = burrow.squareIsEmpty(this.hallwayX - 1, 0)
+                                   || burrow.squareIsEmpty(this.hallwayX + 1, 0);
 
-        if (below instanceof Amphipod && below.roomIsCorrect()) {
-          // console.log(`  marking ${this} and ${below} as settled`)
-          this.isSettled = true;
-          below.isSettled = true;
-          return this.#nextPos;
-        } else {
-          // console.log(`  1st row, incorrect below`);
-        }
-      }
-
-      // we're in the first row, we can move if we can step into the hallway
-      // safely
-      // console.log(`  1st row, room above`)
-      canMoveIntoHallway = true;
-      // return hasAvailableHallwayTile;
-    }
-
-    if (this.y == 2) {
-      if (! burrow.squareIsEmpty(this.x, this.y - 1 || this.roomIsCorrect())) {
+      if (! hasAvailableHallwayTile) {
         return this.#nextPos;
       }
 
-      canMoveIntoHallway = true;
-    }
+      // we can move into the hallway if every spot above us is free
+      let canMoveIntoHallway = true;
+      for (let y = this.y - 1; y > 0; y--) {
+        canMoveIntoHallway &&= burrow.squareIsEmpty(this.x, y);
+      }
 
-    if (hasAvailableHallwayTile && canMoveIntoHallway) {
-      // console.log(`  gonna move into the hallway`)
-      const hallway = burrow.lines[0];
+      if (! canMoveIntoHallway) {
+        return this.#nextPos;
+      }
 
-      // left
+      // left available spaces
       for (let i = this.hallwayX; i >= 0; i--) {
         if (hallway[i] instanceof Amphipod) break;
 
@@ -132,25 +121,27 @@ class Amphipod {
 
     // So, we're in the hallway. We can only move if our room is available
     // and there is a direct path to it
-    if (burrow.roomIsAvailable(this.letter)) {
-      const hallway = burrow.lines[0];
-      const inc = this.hallwayX > this.x ? 1 : -1;
-
-      // console.log(`    room is avail, ${this.hallwayX}, ${this.x}, ${inc}`)
-
-      for (let x = this.x + inc; x !== this.hallwayX; x += inc) {
-        if (hallway[x] instanceof Amphipod) {
-          return this.#nextPos;
-        }
-      }
-
-      const lower = burrow.thingAt(this.targetX, 2);
-      const whichY = lower === '.' ? 2 : 1;
-      // console.log(  `adding room spot`);
-      this.#nextPos.push([this.targetX, whichY]);
+    if (! burrow.roomIsAvailable(this.letter)) {
       return this.#nextPos;
     }
 
+    const wantX = (this.targetX + 1) * 2;
+    const inc = wantX > this.x ? 1 : -1;
+
+    for (let x = this.x + inc; x !== wantX; x += inc) {
+      if (hallway[x] instanceof Amphipod) {
+        return this.#nextPos;
+      }
+    }
+
+    // find the bottom-most available y
+    let whichY = 1;
+    for (let y = 2; y <= burrow.depth; y++) {
+      if (! burrow.squareIsEmpty(this.targetX, y)) break;
+      whichY = y;
+    }
+
+    this.#nextPos.push([this.targetX, whichY]);
     return this.#nextPos;
   }
 
@@ -176,6 +167,10 @@ class Burrow {
         c === '.' || c === 'x' ? c : new Amphipod(c, x, y)
       );
     });
+  }
+
+  get depth(): number {
+    return this.lines.length - 1;
   }
 
   toString(): string {
@@ -214,19 +209,29 @@ class Burrow {
 
   roomIsAvailable(letter: string): boolean {
     const idx = ['A', 'B', 'C', 'D'].findIndex(c => c === letter);
-    const lower = this.thingAt(idx, 2);
-    const upper = this.thingAt(idx, 1);
-    return upper === '.' && (lower === '.' || lower.letter === letter);
+
+    // a room is available if it has at least one open space, and everything
+    // in it is the correct letter
+    for (let y = this.depth; y > 1; y--) {
+      const thing = this.thingAt(idx, y);
+      if (thing === '.' || thing.letter === letter) {
+        continue;
+      }
+
+      return false;
+    }
+
+    return this.thingAt(idx, 1) === '.';
   }
 }
 
 class State {
   energy: number;
 
-  constructor({ energy, burrow /*, trace*/ }) {
+  constructor({ energy, burrow, trace }) {
     this.energy = energy ?? 0;
     this.burrow = burrow;
-    // this.trace = trace ?? [];
+    this.trace = trace ?? [];
   }
 
   toString(): string {
@@ -237,16 +242,12 @@ class State {
     return new State({
       energy: this.energy,
       burrow: this.burrow.clone(),
-      // trace: [ ...this.trace, String(this) ],
+      trace: [ ...this.trace, String(this) ],
     });
   }
 
   isCorrect(): boolean {
     return this.burrow.amphipods.every(pod => pod.isSettled);
-  }
-
-  isUnsolvable(): boolean {
-    return false;
   }
 
   validNextStates(): State[] {
@@ -260,8 +261,6 @@ class State {
 
         // swap pod and empty
         const newPod = newState.burrow.thingAt(pod.x, pod.y);
-        // newState.burrow.lines[newY][newX] = newPod;
-        // newState.burrow.lines[pod.y][pod.x] = '.';
         newPod.moveTo(newState.burrow, newX, newY);
 
         newState.energy += pod.costToMoveTo(newX, newY);
@@ -273,43 +272,43 @@ class State {
   }
 }
 
-const state = new State({
-  // TEST INPUT
-  // burrow: new Burrow(['..x.x.x.x..', 'BCBD', 'ADCA' ]),
-  // REAL INPUT
-  burrow: new Burrow(['..x.x.x.x..', 'BBDA', 'DCAC' ]),
-});
+const runSimulation = (burrow) => {
+  const queue = [ new State({ burrow }) ];
+  const seen = new Set();
+  let best = Infinity;
 
-const queue = [ state ];
-const seen = new Set();
-let best = 1e6;
-let bestState = null;
+  while (queue.length > 0) {
+    const state = queue.pop();
 
-while (queue.length > 0) {
-  const state = queue.pop();
-  // console.log(`examining ${state}`)
+    if (state.energy > best) {
+      continue;
+    }
 
-  if (state.energy > best) {
-    continue;
+    const k = String(state);
+    if (seen.has(k)) {
+      continue;
+    }
+
+    seen.add(k);
+
+    if (state.isCorrect()) {
+      best = Math.min(best, state.energy);
+      // console.log(`found a winner: ${state}`)
+      continue;
+    }
+
+    for (const nextState of state.validNextStates()) {
+      queue.push(nextState);
+    }
   }
 
-  const k = String(state);
-  if (seen.has(k)) {
-    continue;
-  }
-
-  seen.add(k);
-
-  if (state.isCorrect()) {
-    best = Math.min(best, state.energy);
-    console.log(`found a winner: ${state}`)
-    continue;
-  }
-
-  for (const nextState of state.validNextStates()) {
-    // console.log(`  pushing ${nextState}`)
-    queue.push(nextState);
-  }
+  return best;
 }
 
-console.log(best)
+const part1 = runSimulation(new Burrow(['..x.x.x.x..', 'BBDA', 'DCAC' ]));
+console.log(`part 1: ${part1}`)
+
+const part2 = runSimulation(
+  new Burrow(['..x.x.x.x..', 'BBDA', 'DCBA', 'DBAC', 'DCAC' ])
+);
+console.log(`part 2: ${part2}`)
